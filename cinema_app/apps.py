@@ -2,4 +2,6 @@ from django.apps import AppConfig
 
 
 class CinemaAppConfig(AppConfig):
-    name = 'cinema_app'
+    default_auto_field = "django.db.models.BigAutoField"
+    name = "cinema_app"
+    verbose_name = "Кинотеатр"
