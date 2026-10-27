@@ -1,6 +1,7 @@
 
 import { useEffect, useState } from 'react';
 import './App.css';
+import { Link } from 'react-router-dom';
 
 const API_URL = 'http://127.0.0.1:8000/api/movies/';
 const API_BASE = 'http://127.0.0.1:8000';
@@ -115,14 +116,9 @@ function App() {
 
                     <span className="rating">{movie.age_rating}</span>
 
-                    <button
-                      className="poster-button"
-                      onClick={() =>
-                        alert(`${movie.title}\n\n${movie.description}`)
-                      }
-                    >
+                    <Link className="poster-button" to={`/movies/${movie.id}`}>
                       Подробнее
-                    </button>
+                    </Link>
                   </div>
 
                   <div className="movie-info">
