@@ -1,7 +1,6 @@
-
 import { useEffect, useState } from 'react';
-import './App.css';
 import { Link } from 'react-router-dom';
+import './App.css';
 
 const API_URL = 'http://127.0.0.1:8000/api/movies/';
 const API_BASE = 'http://127.0.0.1:8000';
@@ -10,13 +9,12 @@ function App() {
   const [movies, setMovies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
     fetch(API_URL)
       .then((response) => {
-        if (!response.ok) {
-          throw new Error('Ошибка загрузки');
-        }
+        if (!response.ok) throw new Error('Ошибка загрузки');
         return response.json();
       })
       .then((data) => {
@@ -26,23 +24,46 @@ function App() {
         setError('Не удалось загрузить фильмы. Проверь, запущен ли Django.');
       })
       .finally(() => setLoading(false));
+
+    const token = localStorage.getItem('cinemaToken');
+
+    if (token) {
+      fetch(`${API_BASE}/api/auth/me/`, {
+        headers: { Authorization: `Token ${token}` },
+      })
+        .then((response) => {
+          if (!response.ok) throw new Error();
+          return response.json();
+        })
+        .then(setUser)
+        .catch(() => {
+          localStorage.removeItem('cinemaToken');
+          localStorage.removeItem('cinemaUser');
+        });
+    }
   }, []);
 
   return (
     <div className="app">
       <header className="header">
-        <a className="logo" href="/">
+        <Link className="logo" to="/">
           CINEMA<span className="logo-accent">.</span>
-        </a>
+        </Link>
 
         <nav className="navigation">
           <a className="active" href="#movies">Фильмы</a>
           <a href="#about">О кинотеатре</a>
         </nav>
 
-        <button className="login-button" onClick={() => alert('Авторизация появится позже')}>
-          Войти
-        </button>
+        {user ? (
+          <Link className="login-button" to="/profile">
+            {user.username}
+          </Link>
+        ) : (
+          <Link className="login-button" to="/login">
+            Войти
+          </Link>
+        )}
       </header>
 
       <main>
@@ -83,6 +104,7 @@ function App() {
 
           {loading && <p>Загружаем фильмы...</p>}
           {error && <p>{error}</p>}
+
           {!loading && !error && movies.length === 0 && (
             <p>Пока фильмов нет. Добавь их через панель администратора.</p>
           )}
@@ -100,7 +122,12 @@ function App() {
                 : 'Жанр не указан';
 
               return (
-                <article className="movie-card" key={movie.id}>
+                <Link
+                  className="movie-card"
+                  key={movie.id}
+                  to={`/movies/${movie.id}`}
+                  aria-label={`Открыть фильм «${movie.title}»`}
+                >
                   <div className="poster-wrap">
                     {posterUrl ? (
                       <img
@@ -116,9 +143,9 @@ function App() {
 
                     <span className="rating">{movie.age_rating}</span>
 
-                    <Link className="poster-button" to={`/movies/${movie.id}`}>
-                      Подробнее
-                    </Link>
+                    {/* Кнопка-подсказка: некликабельна сама по себе,
+                        вся карточка — ссылка */}
+                    <span className="poster-button">Подробнее</span>
                   </div>
 
                   <div className="movie-info">
@@ -126,7 +153,7 @@ function App() {
                     <h3>{movie.title}</h3>
                     <p className="duration">{movie.duration} мин.</p>
                   </div>
-                </article>
+                </Link>
               );
             })}
           </div>
