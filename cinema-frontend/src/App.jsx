@@ -87,7 +87,7 @@ function App() {
 
           <div className="hero-decoration">
             <div className="hero-circle">
-              <span>▶</span>
+              <span></span>
             </div>
             <div className="hero-caption">YOUR MOVIE EXPERIENCE</div>
           </div>
