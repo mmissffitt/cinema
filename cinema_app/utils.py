@@ -8,11 +8,7 @@ BOOKING_DURATION_MINUTES = 15
 
 
 def expire_old_bookings():
-    """Помечает истёкшие брони и освобождает связанные с ними места.
-
-    Функция вызывается из API-запросов; для учебного проекта фоновый планировщик
-    не требуется. Срок брони также ограничивается временем начала сеанса.
-    """
+    """Помечает истёкшие брони и освобождает связанные с ними места."""
     now = timezone.now()
     expired_filter = Q(expires_at__lte=now) | Q(session__start_time__lte=now)
 
@@ -38,7 +34,10 @@ def expire_old_bookings():
 def get_occupied_seat_ids(session):
     """Возвращает ID мест, занятых действующей бронью или подтверждённым билетом."""
     now = timezone.now()
-    active_booking = Q(booking__status=Booking.Status.PAID) | Q(
+    active_booking = Q(
+        booking__status=Booking.Status.PAID,
+        booking__session__end_time__gt=now,
+    ) | Q(
         booking__status=Booking.Status.PENDING,
         booking__expires_at__gt=now,
         booking__session__start_time__gt=now,

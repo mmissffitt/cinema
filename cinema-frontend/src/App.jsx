@@ -43,6 +43,15 @@ function App() {
     }
   }, []);
 
+  // Берем первый фильм как главную премьеру для баннера
+  const featuredMovie = movies.length > 0 ? movies[0] : null;
+
+  const featuredPosterUrl = featuredMovie?.poster
+    ? featuredMovie.poster.startsWith('http')
+      ? featuredMovie.poster
+      : `${API_BASE}${featuredMovie.poster}`
+    : null;
+
   return (
     <div className="app">
       <header className="header">
@@ -51,7 +60,7 @@ function App() {
         </Link>
 
         <nav className="navigation">
-          <a className="active" href="#movies">Фильмы</a>
+          <a className="active" href="#movies">Афиша</a>
           <a href="#about">О кинотеатре</a>
         </nav>
 
@@ -67,43 +76,71 @@ function App() {
       </header>
 
       <main>
-        <section className="hero">
-          <div className="hero-content">
-            <span className="eyebrow">ТВОЙ КИНОТЕАТР</span>
-            <h1>
-              Большие истории.
-              <br />
-              <span>Большой экран.</span>
-            </h1>
-            <p>
-              Выбирай фильм, находи подходящий сеанс
-              <br />
-              и готовься к незабываемым впечатлениям.
-            </p>
-            <a className="primary-button" href="#movies">
-              Смотреть афишу <span>→</span>
-            </a>
-          </div>
+        {/* Кинематографичный баннер премьеры дня (в стиле Multiflex) */}
+        <section className="hero-banner">
+          {featuredMovie ? (
+            <>
+              {featuredPosterUrl && (
+                <div
+                  className="hero-backdrop"
+                  style={{ backgroundImage: `url(${featuredPosterUrl})` }}
+                />
+              )}
+              <div className="hero-overlay" />
+              <div className="hero-container">
+                <div className="hero-content">
+                  <span className="eyebrow">ПРЕМЬЕРА НЕДЕЛИ</span>
+                  <h1>{featuredMovie.title}</h1>
+                  <p className="hero-meta">
+                    {featuredMovie.genres?.map((g) => g.name).join(' · ')}
+                    {featuredMovie.duration ? ` · ${featuredMovie.duration} мин.` : ''}
+                    {featuredMovie.age_rating ? ` · ${featuredMovie.age_rating}` : ''}
+                  </p>
+                  <p className="hero-desc">
+                    {featuredMovie.description || 'Главная премьера на большом экране. Погрузитесь в незабываемую историю вместе с нашим кинотеатром.'}
+                  </p>
+                  <div className="hero-buttons">
+                    <Link className="primary-button" to={`/movies/${featuredMovie.id}`}>
+                      Выбрать сеанс <span>→</span>
+                    </Link>
+                    {featuredMovie.trailer_url && (
+                      <a
+                        className="secondary-button"
+                        href={featuredMovie.trailer_url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        ▶ Смотреть трейлер
+                      </a>
+                    )}
+                  </div>
+                </div>
 
-          <div className="hero-decoration">
-            <div className="hero-circle">
-              <span>▶</span>
+                {featuredPosterUrl && (
+                  <div className="hero-poster-preview">
+                    <img src={featuredPosterUrl} alt={featuredMovie.title} />
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="hero-loading">
+              {loading ? 'Загрузка афиши...' : 'Добавьте фильмы в панели администратора Django'}
             </div>
-            <div className="hero-caption">YOUR MOVIE EXPERIENCE</div>
-          </div>
+          )}
         </section>
 
         <section className="movies-section" id="movies">
           <div className="section-heading">
             <div>
-              <span className="eyebrow">СЕЙЧАС В КИНО</span>
+              <span className="eyebrow">СЕЙЧАС В ПРОКАТЕ</span>
               <h2>Афиша фильмов</h2>
             </div>
             <span className="movie-count">{movies.length} фильмов</span>
           </div>
 
           {loading && <p>Загружаем фильмы...</p>}
-          {error && <p>{error}</p>}
+          {error && <p className="form-error">{error}</p>}
 
           {!loading && !error && movies.length === 0 && (
             <p>Пока фильмов нет. Добавь их через панель администратора.</p>
@@ -142,9 +179,6 @@ function App() {
                     )}
 
                     <span className="rating">{movie.age_rating}</span>
-
-                    {/* Кнопка-подсказка: некликабельна сама по себе,
-                        вся карточка — ссылка */}
                     <span className="poster-button">Подробнее</span>
                   </div>
 
@@ -160,11 +194,11 @@ function App() {
         </section>
 
         <section className="about-section" id="about">
-          <span className="eyebrow">О НАС</span>
-          <h2>Кино — это больше, чем экран</h2>
+          <span className="eyebrow">О КИНОТЕАТРЕ</span>
+          <h2>Магия большого экрана в <em>каждом сеансе</em></h2>
           <p>
-            Выбирай фильмы, изучай расписание сеансов
-            и бронируй места в несколько кликов.
+            Выбирайте лучшие места, наслаждайтесь звуком Dolby Atmos
+            и бронируйте билеты в пару кликов.
           </p>
         </section>
       </main>

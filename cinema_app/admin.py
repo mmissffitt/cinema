@@ -31,7 +31,6 @@ class SeatInlineFormSet(BaseInlineFormSet):
                 continue
             if form.cleaned_data.get("DELETE", False):
                 continue
-            # Existing filled forms and new filled forms both have cleaned data.
             if form.cleaned_data.get("row_number") and form.cleaned_data.get("seat_number"):
                 actual_count += 1
 
@@ -53,6 +52,10 @@ class HallAdmin(admin.ModelAdmin):
     search_fields = ("name",)
     inlines = (SeatInline,)
 
+    def save_model(self, request, obj, form, change):
+        obj.full_clean()
+        super().save_model(request, obj, form, change)
+
 
 @admin.register(Seat)
 class SeatAdmin(admin.ModelAdmin):
@@ -67,6 +70,10 @@ class SessionAdmin(admin.ModelAdmin):
     list_filter = ("hall", "format")
     search_fields = ("movie__title", "hall__name")
     date_hierarchy = "start_time"
+
+    def save_model(self, request, obj, form, change):
+        obj.full_clean()
+        super().save_model(request, obj, form, change)
 
 
 class TicketInline(admin.TabularInline):
@@ -87,7 +94,6 @@ class BookingAdmin(admin.ModelAdmin):
     inlines = (TicketInline,)
 
     def has_add_permission(self, request):
-        # Брони создаются через API, чтобы всегда выполнялись проверки мест.
         return False
 
 
@@ -99,5 +105,4 @@ class TicketAdmin(admin.ModelAdmin):
     readonly_fields = ("booking", "session", "seat", "status")
 
     def has_add_permission(self, request):
-        # Билеты создаются только внутри транзакции создания брони.
         return False

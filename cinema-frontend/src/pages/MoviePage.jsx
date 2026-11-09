@@ -5,6 +5,15 @@ import '../App.css';
 const API_URL = 'http://127.0.0.1:8000/api/';
 const API_BASE = 'http://127.0.0.1:8000';
 
+function getYouTubeEmbedUrl(url) {
+  if (!url) return null;
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+  const match = url.match(regExp);
+  return (match && match[2].length === 11)
+    ? `https://www.youtube.com/embed/${match[2]}?autoplay=1`
+    : null;
+}
+
 function MoviePage() {
   const { id } = useParams();
 
@@ -13,6 +22,7 @@ function MoviePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [sessionsError, setSessionsError] = useState('');
+  const [isTrailerOpen, setIsTrailerOpen] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -61,6 +71,8 @@ function MoviePage() {
     ? movie.genres.map((genre) => genre.name).join(' · ')
     : 'Жанр не указан';
 
+  const embedUrl = getYouTubeEmbedUrl(movie.trailer_url);
+
   return (
     <div className="app">
       <header className="header">
@@ -69,8 +81,7 @@ function MoviePage() {
         </Link>
 
         <nav className="navigation">
-          <Link to="/">Фильмы</Link>
-          <a href="/#about">О кинотеатре</a>
+          <Link to="/">Афиша</Link>
         </nav>
 
         <Link className="login-button" to="/profile">
@@ -107,20 +118,21 @@ function MoviePage() {
             <h2>Описание</h2>
             <p>{movie.description || 'Описание пока не добавлено.'}</p>
 
-            {movie.trailer_url && (
-              <a
-                className="primary-button"
-                href={movie.trailer_url}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Смотреть трейлер →
-              </a>
+            {/* Кнопка открытия трейлера в модальном окне */}
+            {embedUrl && (
+              <div style={{ marginTop: '24px' }}>
+                <button
+                  className="primary-button"
+                  onClick={() => setIsTrailerOpen(true)}
+                >
+                  ▶ Смотреть трейлер
+                </button>
+              </div>
             )}
 
             <h2>Расписание сеансов</h2>
 
-            {sessionsError && <p>{sessionsError}</p>}
+            {sessionsError && <p className="form-error">{sessionsError}</p>}
 
             {!sessionsError && sessions.length === 0 && (
               <p>Для этого фильма пока нет будущих сеансов.</p>
@@ -155,6 +167,26 @@ function MoviePage() {
           </div>
         </div>
       </main>
+
+      {/* Модальное окно для трейлера */}
+      {isTrailerOpen && embedUrl && (
+        <div className="trailer-modal" onClick={() => setIsTrailerOpen(false)}>
+          <div className="trailer-modal-content" onClick={(e) => e.stopPropagation()}>
+            <button className="close-modal" onClick={() => setIsTrailerOpen(false)}>
+              ✕
+            </button>
+            <div className="trailer-container">
+              <iframe
+                src={embedUrl}
+                title={`Трейлер фильма ${movie.title}`}
+                frameBorder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       <footer className="footer">
         <span>CINEMA. — Твой билет в другой мир.</span>

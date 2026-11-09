@@ -1,13 +1,17 @@
 from datetime import timedelta
 from decimal import Decimal
+from io import BytesIO
 
+import qrcode
 from django.contrib.auth import authenticate
+from django.core.files.base import ContentFile
 from django.db import IntegrityError, transaction
+from django.db.models import Sum
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from rest_framework import permissions, status, viewsets
-from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.authtoken.models import Token
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
@@ -41,7 +45,18 @@ def _positive_int_param(request, name):
 
 
 def _user_payload(user):
-    return {"id": user.id, "username": user.username, "email": user.email}
+    paid_bookings = user.bookings.filter(status=Booking.Status.PAID)
+    total_spent = paid_bookings.aggregate(total=Sum("total_price"))["total"] or Decimal("0.00")
+    return {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "stats": {
+            "total_spent": str(total_spent),
+            "total_bookings": user.bookings.count(),
+            "paid_bookings": paid_bookings.count(),
+        },
+    }
 
 
 @api_view(["GET"])
@@ -156,7 +171,6 @@ class SessionViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=["get"], url_path="seats")
     def seats(self, request, pk=None):
-        """Список мест для выбранного сеанса и признак доступности каждого места."""
         expire_old_bookings()
         session = self.get_object()
         seats = session.hall.seats.all().order_by("row_number", "seat_number")
@@ -204,7 +218,6 @@ class BookingViewSet(viewsets.ModelViewSet):
 
         try:
             with transaction.atomic():
-                # PostgreSQL serializes simultaneous bookings for the same session here.
                 session = (
                     Session.objects.select_for_update()
                     .select_related("hall", "movie")
@@ -224,10 +237,8 @@ class BookingViewSet(viewsets.ModelViewSet):
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
-                valid_seat_ids = set(
-                    Seat.objects.filter(id__in=seat_ids, hall_id=session.hall_id)
-                    .values_list("id", flat=True)
-                )
+                seats_qs = Seat.objects.filter(id__in=seat_ids, hall_id=session.hall_id)
+                valid_seat_ids = set(seats_qs.values_list("id", flat=True))
                 if valid_seat_ids != set(seat_ids):
                     return Response(
                         {"error": "Одно или несколько мест не существуют или относятся к другому залу."},
@@ -245,6 +256,13 @@ class BookingViewSet(viewsets.ModelViewSet):
                         status=status.HTTP_409_CONFLICT,
                     )
 
+                total_price = Decimal("0.00")
+                for seat in seats_qs:
+                    if seat.seat_type == Seat.SeatType.VIP:
+                        total_price += session.base_price * Decimal("1.5")
+                    else:
+                        total_price += session.base_price
+
                 created_at = timezone.now()
                 expires_at = min(
                     created_at + timedelta(minutes=BOOKING_DURATION_MINUTES),
@@ -253,7 +271,7 @@ class BookingViewSet(viewsets.ModelViewSet):
                 booking = Booking.objects.create(
                     user=request.user,
                     session=session,
-                    total_price=session.base_price * Decimal(len(seat_ids)),
+                    total_price=total_price,
                     expires_at=expires_at,
                 )
                 Ticket.objects.bulk_create(
@@ -271,7 +289,6 @@ class BookingViewSet(viewsets.ModelViewSet):
         except Session.DoesNotExist:
             return Response({"error": "Сеанс не найден."}, status=status.HTTP_404_NOT_FOUND)
         except IntegrityError:
-            # UniqueConstraint защищает от дублирования мест даже при конкурентных запросах.
             return Response(
                 {"error": "Одно или несколько мест только что заняли. Обновите схему мест."},
                 status=status.HTTP_409_CONFLICT,
@@ -285,7 +302,6 @@ class BookingViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"], url_path="confirm")
     def confirm(self, request, pk=None):
-        """Демонстрационное подтверждение без банковской оплаты."""
         expire_old_bookings()
         with transaction.atomic():
             booking = Booking.objects.select_for_update().filter(
@@ -307,7 +323,20 @@ class BookingViewSet(viewsets.ModelViewSet):
                 )
 
             booking.status = Booking.Status.PAID
-            booking.save(update_fields=["status"])
+
+            if not booking.qr_code:
+                qr_data = f"CINEMA-TICKET #{booking.id}\nUser: {request.user.username}\nMovie: {booking.session.movie.title}\nHall: {booking.session.hall.name}\nStatus: PAID"
+                qr = qrcode.QRCode(version=1, box_size=15, border=3)
+                qr.add_data(qr_data)
+                qr.make(fit=True)
+                img = qr.make_image(fill_color="black", back_color="white")
+
+                buffer = BytesIO()
+                img.save(buffer, format="PNG")
+                file_name = f"qr_booking_{booking.id}.png"
+                booking.qr_code.save(file_name, ContentFile(buffer.getvalue()), save=False)
+
+            booking.save()
             booking.tickets.filter(status=Ticket.Status.BOOKED).update(status=Ticket.Status.PAID)
 
         booking = self.get_queryset().get(pk=booking.pk)
