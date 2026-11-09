@@ -76,7 +76,7 @@ function App() {
       </header>
 
       <main>
-        {/* Кинематографичный баннер премьеры дня (в стиле Multiflex) */}
+        {/* Кинематографичный баннер премьеры дня */}
         <section className="hero-banner">
           {featuredMovie ? (
             <>
